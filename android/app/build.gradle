@@ -2,6 +2,7 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+import com.android.build.OutputFile
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -51,10 +52,14 @@ react {
     // hermesFlags = ["-O", "-output-source-map"]
 }
 
+project.ext.react = [
+        enableHermes: true,  // false to true , clean and rebuild if changing
+]
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
+def enableSeparateBuildPerCPUArchitecture = true
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -70,15 +75,15 @@ def enableProguardInReleaseBuilds = false
 def jscFlavor = 'org.webkit:android-jsc:+'
 
 android {
-    ndkVersion "23.0.7599858"
-    buildToolsVersion "30.0.3"
-    compileSdk 34
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.lively"
     defaultConfig {
         applicationId "com.lively"
-        minSdkVersion 23
-        targetSdkVersion 34
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
     }
@@ -102,13 +107,30 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+              // applicationVariants are e.g. debug, release
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            // For each separate APK per architecture, set a unique version code as described here:
+            // https://developer.android.com/studio/build/configure-apk-splits.html
+            // Example: versionCode 1 will generate 1001 for armeabi-v7a, 1002 for x86, etc.
+            def versionCodes = ["armeabi-v7a": 1, "x86": 2, "arm64-v8a": 3, "x86_64": 4]
+            def abi = output.getFilter(OutputFile.ABI)
+            if (abi != null) {  // null for the universal-debug, universal-release variants
+                output.versionCodeOverride =
+                        defaultConfig.versionCode * 1000 + versionCodes.get(abi)
+            }
+
+        }
+    }
 }
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    
     implementation project(':react-native-vector-icons')
+    implementation "com.facebook.react:react-native:+"
+    implementation project(':react-native-otp-verify')
+    implementation 'com.google.android.gms:play-services-auth:19.0.0'
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
@@ -119,3 +141,4 @@ dependencies {
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+// apply plugin: 'com.google.gms.google-services'

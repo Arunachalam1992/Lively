@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Pressable, TextInput, View, Keyboard, Text } from 'react-native';
+import React, {useState, useEffect} from 'react';
+import {StyleSheet} from 'react-native';
+import {Pressable, TextInput, View, Keyboard, Text} from 'react-native';
 import Color from '../Global/Color';
-import { Manrope } from '../Global/FontFamily';
 
 const OTPInput = ({
   inputRef,
@@ -100,14 +100,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
-    minWidth: 60,
-    height: 60,
+    minWidth: 55,
+    height: 55,
     justifyContent: 'center',
     marginHorizontal: 20,
   },
   BoxInputValue: {
     fontSize: 18,
-    fontFamily: Manrope.SemiBold,
+    // fontFamily: Manrope.SemiBold,
     textAlign: 'center',
     color: Color.black,
     // paddingTop: 5,

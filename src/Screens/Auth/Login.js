@@ -1,253 +1,575 @@
-//import liraries
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    Animated,
-    Image,
-    TouchableOpacity,
-    TextInput,
-    Keyboard,
-    SafeAreaView,
-    ToastAndroid,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  TextInput,
+  Keyboard,
+  SafeAreaView,
 } from 'react-native';
 import Color from '../../Global/Color';
-import { Manrope } from '../../Global/FontFamily';
-import { useNavigation } from '@react-navigation/native';
-import { Media } from '../../Global/Media';
+// import {Manrope} from '../../Global/';
+import {Iconviewcomponent} from '../../Components/Icontag';
+import {StackActions, useNavigation} from '@react-navigation/native';
+import {Media} from '../../Global/Media';
 
-// create a component
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
+import common_fn from '../../Config/common_fn';
+import fetchData from '../../Config/fetchData';
+import {useDispatch, useSelector} from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const Login = () => {
+  const navigation = useNavigation();
+  const [loading, setLoading] = useState(false);
+  const countryCode = useSelector(state => state.UserReducer.country);
+  const [number, setNumber] = useState('');
+  const [error, setError] = useState(false);
+  const [loginType, setLoginType] = useState('');
+  const dispatch = useDispatch();
 
-    const navigation = useNavigation();
-    const [loading, setLoading] = useState(false);
+  const isEmail = input => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(input);
+  };
 
-    const [number, setNumber] = useState('');
-    const [error, setError] = useState(false);
-    const [loginType, setLoginType] = useState('');
+  const isMobile = input => {
+    const mobileRegex = /^[0-9]{10}$/;
+    return mobileRegex.test(input);
+  };
 
-    const chkNumber = number => {
-        setNumber(number);
-        if (number.length == 10) {
-            Keyboard.dismiss();
+  useEffect(() => {
+    try {
+      GoogleSignin.configure({
+        scopes: ['email', 'profile'],
+        webClientId:
+          '573868691501-50tudos3b49fgfjar4q841sjmhmmm12e.apps.googleusercontent.com',
+        offlineAccess: false,
+      });
+    } catch (error) {
+      console.log('error ----------- : ', error);
+    }
+  }, []);
+
+  const googleSignIn = async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      if (userInfo) {
+        var data = {
+          region_id: countryCode?.id,
+          email: userInfo?.user?.email,
+        };
+        const updateProfiledata = await fetchData.login_with_gmail(data, null);
+        if (updateProfiledata.message) {
+          const UserLogin = {
+            ...updateProfiledata?.data,
+            token: updateProfiledata?.token,
+          };
+          await AsyncStorage.setItem('user_data', JSON.stringify(UserLogin));
+          navigation.replace('TabNavigator');
+          common_fn.showToast(`Welcome to ShopEasey`);
         }
-    };
+      }
+    } catch (error) {
+      console.log('catch in google_Signing', error);
+    }
+  };
 
-    const chkNumberError = number => {
-        let reg = /^[6-9][0-9]*$/;
+  const chkNumber = number => {
+    setNumber(number);
+    if (number.length == 10) {
+      Keyboard.dismiss();
+    }
+  };
 
-        if (number.length === 0) {
-            setError('Please enter your mobile number');
-        } else if (reg.test(number) === false) {
-            setError(false);
-            setError(false);
-        } else if (reg.test(number) === true) {
-            setError('');
+  const chkNumberError = number => {
+    let reg = /^[6-9][0-9]*$/;
+
+    if (number.length === 0) {
+      setError('Please enter your mobile number');
+    } else if (reg.test(number) === false) {
+      setError(false);
+      setError(false);
+    } else if (reg.test(number) === true) {
+      setError('');
+    }
+  };
+
+  const loginVerify = async () => {
+    try {
+      setLoading(true);
+      const numberIsEmail = isEmail(number);
+      const numberIsMobile = isMobile(number);
+      if (numberIsEmail || (numberIsMobile && number.length === 10)) {
+        var data = {
+          region_id: countryCode?.id,
+        };
+        if (isEmail(number)) {
+          data.email = number;
+        } else if (isMobile(number)) {
+          data.mobile = number;
         }
-    };
-
-    const loginVerify = async () => {
-        try {
-            setLoading(true);
-            if (number.length == 10) {
-                navigation.navigate('OTPScreen', {
-                    number,
-                    token: '',
-                    loginType,
-                });
-                // var data = {
-                //   mobile: number,
-                // };
-                // const login_data = await fetchData.login_with_otp(data, null);
-                // if (login_data?.status == true) {
-                //   common_fn.showToast('OTP Sent to your Email');
-                //   navigation.navigate('OTPScreen', {
-                //     number,
-                //     token: login_data?.token,
-                //     loginType,
-                //   });
-                //   setLoading(false);
-                // } else {
-                //   var msg = login_data?.message;
-                //   setError(msg);
-                //   setLoading(false);
-                // }
-                setLoading(false);
-            } else {
-                ToastAndroid.show("Invalid Phone Number, Please Enter Your 10 Digit Phone Number", ToastAndroid.SHORT);
-                setLoading(false);
-            }
-        } catch (error) {
-            console.log('error', error);
-            setLoading(false);
+        const login_data = await fetchData.login_with_otp(data, null);
+        if (login_data?.status == true) {
+          common_fn.showToast('OTP Sent to your Email');
+          navigation.dispatch(
+            StackActions.replace('OTPScreen', {
+              number,
+              token: login_data?.token,
+              loginType,
+            }),
+          );
+          setLoading(false);
+        } else {
+          var msg = login_data?.message;
+          setError(msg);
+          setLoading(false);
         }
-    };
+        setLoading(false);
+      } else {
+        common_fn.showToast(
+          'Invalid Phone Number Please Enter Your 10 Digit Phone Number',
+        );
+        setLoading(false);
+      }
+    } catch (error) {
+      console.log('error', error);
+      setLoading(false);
+    }
+  };
 
-    const RegisterVerify = async () => {
-        try {
-            setLoading(true);
-            //   if (number.length == 10) {
-            //     var data = {
-            //       mobile: number,
-            //       region_id: countryCode?.id,
-            //     };
-            //     const Register_data = await fetchData.Register_request_otp(data, null);
-            //     if (Register_data?.status == true) {
-            //       common_fn.showToast('OTP Sent to your Email');
-            //       navigation.navigate('OTPScreen', {
-            //         number,
-            //         token: Register_data?.token,
-            //         loginType,
-            //       });
-            //       setLoading(false);
-            //     } else {
-            //       var msg = Register_data?.message;
-            //       setError(msg);
-            //       setLoading(false);
-            //     }
-            //     setLoading(false);
-            //   } else {
-            //     common_fn.showToast(
-            //       'Invalid Phone Number Please Enter Your 10 Digit Phone Number',
-            //     );
-            //     setLoading(false);
-            //   }
-        } catch (error) {
-            console.log('error', error);
-            setLoading(false);
+  const RegisterVerify = async () => {
+    try {
+      setLoading(true);
+      const numberIsEmail = isEmail(number);
+      const numberIsMobile = isMobile(number);
+      if (numberIsEmail || (numberIsMobile && number.length === 10)) {
+        var data = {
+          region_id: countryCode?.id,
+        };
+        if (isEmail(number)) {
+          data.email = number;
+        } else if (isMobile(number)) {
+          data.mobile = number;
         }
-    };
+        const Register_data = await fetchData.Register_request_otp(data, null);
+        if (Register_data?.status == true) {
+          common_fn.showToast('OTP Sent to your Email');
+          navigation.navigate('OTPScreen', {
+            number,
+            token: Register_data?.token,
+            loginType,
+          });
+          setLoading(false);
+        } else {
+          var msg = Register_data?.message;
+          setError(msg);
+          setLoading(false);
+        }
+        setLoading(false);
+      } else {
+        common_fn.showToast(
+          'Invalid Phone Number Please Enter Your 10 Digit Phone Number',
+        );
+        setLoading(false);
+      }
+    } catch (error) {
+      console.log('error', error);
+      setLoading(false);
+    }
+  };
 
-
-
-    return (
-        <View style={styles.container}>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Image source={{ uri: Media.onboard_main }} style={styles.image} />
-                <Text>Login</Text>
-            </View>
-            <View style={{ flex: 1, width: '100%', }}>
-                <View
-                    style={{
-                        //   flex: 1,
-                        padding: 10,
-                    }}>
-                    <Text
-                        style={{
-                            fontSize: 16,
-                            color: Color.black,
-                            fontFamily: Manrope.Bold,
-                            marginTop: 10,
-                        }}>
-                        Mobile Number
-                    </Text>
-                    <View style={{ marginVertical: 10 }}>
-                        <View style={styles.NumberBoxConatiner}>
-                            {/* <Text style={styles.numberCountryCode}>+91</Text> */}
-                            <TextInput
-                                placeholder="Enter Your Mobile number"
-                                placeholderTextColor={Color.cloudyGrey}
-                                value={number}
-                                keyboardType="phone-pad"
-                                maxLength={10}
-                                autoFocus={number.length == 10 ? false : true}
-                                onChangeText={number => {
-                                    chkNumber(number);
-                                    chkNumberError(number);
-                                }}
-                                style={styles.numberTextBox}
-                            />
-                        </View>
-                        {error && <Text style={styles.invalidLogin}>{error}</Text>}
-                    </View>
-                    <TouchableOpacity
-                        onPress={() => {
-                            loginVerify()
-                            // loginType == '' ? loginVerify() : RegisterVerify();
-                        }}
-                        style={{
-                            width: '100%',
-                            height: 50,
-                            marginVertical: 20,
-                            backgroundColor: Color.primary,
-                            borderColor: Color.primary,
-                            borderWidth: 0.5,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            borderRadius: 5,
-                        }}>
-                        <Text
-                            style={{
-                                fontSize: 16,
-                                color: Color.white,
-                                fontFamily: Manrope.SemiBold,
-                                letterSpacing: 0.5,
-                                lineHeight: 22,
-                            }}>
-                            SUBMIT
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+  return (
+    <SafeAreaView style={styles.container}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'flex-end',
+          alignItems: 'flex-start',
+          padding: 10,
+        }}>
+        <Text
+          style={{
+            textAlign: 'left',
+            fontSize: 26,
+            color: Color.black,
+            //fontFamily: Manrope.SemiBold,
+          }}>
+          {loginType == '' ? 'Login to' : 'Register to'}
+        </Text>
+        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+          <Text
+            style={{
+              textAlign: 'left',
+              fontSize: 34,
+              color: Color.black,
+              //fontFamily: Manrope.Bold,
+            }}>
+            Shopeasey
+          </Text>
+          <Iconviewcomponent
+            Icontag={'MaterialIcons'}
+            iconname={'shopping-bag'}
+            icon_size={42}
+            iconstyle={{color: Color.primary, marginHorizontal: 5}}
+          />
         </View>
-    );
+      </View>
+      <View
+        style={{
+          //   flex: 1,
+          padding: 10,
+        }}>
+        <Text
+          style={{
+            fontSize: 16,
+            color: Color.black,
+            //fontFamily: Manrope.Bold,
+            marginTop: 10,
+          }}>
+          {countryCode?.id == 452 ? 'Mobile' : 'WhatsApp'} Number/Email
+        </Text>
+        <View style={{marginVertical: 10}}>
+          <View style={styles.NumberBoxConatiner}>
+            {/* <Text style={styles.numberCountryCode}>+91</Text> */}
+            <TextInput
+              placeholder={`${
+                countryCode?.id == 452 ? 'Mobile' : 'WhatsApp'
+              } Number or Email`}
+              placeholderTextColor={Color.cloudyGrey}
+              value={number}
+              maxLength={isMobile(number) ? 10 : undefined}
+              autoFocus={
+                isMobile(number) && number.length === 10 ? false : true
+              }
+              onChangeText={input => {
+                chkNumber(input);
+                chkNumberError(input);
+              }}
+              style={styles.numberTextBox}
+            />
+          </View>
+          {error && <Text style={styles.invalidLogin}>{error}</Text>}
+        </View>
+        <TouchableOpacity
+          onPress={() => {
+            loginType == '' ? loginVerify() : RegisterVerify();
+          }}
+          style={{
+            width: '100%',
+            height: 50,
+            marginVertical: 20,
+            backgroundColor: Color.primary,
+            borderColor: Color.primary,
+            borderWidth: 0.5,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderRadius: 5,
+          }}>
+          <Text
+            style={{
+              fontSize: 16,
+              color: Color.white,
+              //fontFamily: Manrope.SemiBold,
+              letterSpacing: 0.5,
+              lineHeight: 22,
+            }}>
+            SUBMIT
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <View
+        style={{
+          //   flex: 1,
+          justifyContent: 'center',
+          padding: 10,
+        }}>
+        <TouchableOpacity
+          style={{
+            height: 50,
+            flexDirection: 'row',
+            marginVertical: 10,
+            backgroundColor: Color.white,
+            borderColor: Color.cloudyGrey,
+            borderWidth: 0.5,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderRadius: 5,
+          }}
+          onPress={() => {
+            googleSignIn();
+          }}>
+          <Image
+            source={{uri: Media.google_icon}}
+            style={{width: 30, height: 30, resizeMode: 'contain'}}
+          />
+          <Text
+            style={{
+              fontSize: 14,
+              color: Color.lightBlack,
+              //fontFamily: Manrope.SemiBold,
+              paddingHorizontal: 10,
+            }}>
+            Login With Google
+          </Text>
+        </TouchableOpacity>
+      </View>
+      {loginType == '' && (
+        <View
+          style={{
+            //   flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+          <View
+            style={{
+              width: '45%',
+              height: 0.5,
+              backgroundColor: Color.transparantBlack,
+              borderRadius: 5,
+            }}></View>
+          <Text
+            style={{
+              textAlign: 'center',
+              fontSize: 14,
+              color: Color.cloudyGrey,
+              //fontFamily: Manrope.SemiBold,
+              letterSpacing: 0.5,
+              lineHeight: 22,
+            }}>
+            {' '}
+            or{' '}
+          </Text>
+          <View
+            style={{
+              width: '45%',
+              height: 0.5,
+              backgroundColor: Color.transparantBlack,
+              borderRadius: 5,
+            }}></View>
+        </View>
+      )}
+      {loginType == '' ? (
+        <View
+          style={{
+            //   flex: 1,
+            justifyContent: 'center',
+            padding: 10,
+            marginTop: 20,
+          }}>
+          <Text
+            style={{
+              fontSize: 16,
+              color: Color.black,
+              //fontFamily: Manrope.Bold,
+              // paddingHorizontal: 10,
+            }}>
+            Don't Have An Account?
+          </Text>
+          <TouchableOpacity
+            style={{
+              height: 50,
+              flexDirection: 'row',
+              marginVertical: 10,
+              backgroundColor: Color.white,
+              borderColor: Color.cloudyGrey,
+              borderWidth: 0.5,
+              justifyContent: 'center',
+              alignItems: 'center',
+              borderRadius: 5,
+            }}
+            onPress={() => {
+              setLoginType('Register');
+            }}>
+            <Text
+              style={{
+                fontSize: 14,
+                color: Color.black,
+                //fontFamily: Manrope.Bold,
+                paddingHorizontal: 10,
+              }}>
+              Sign Up
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View
+          style={{
+            //   flex: 1,
+            justifyContent: 'center',
+            padding: 10,
+            marginTop: 20,
+          }}>
+          <Text
+            style={{
+              fontSize: 16,
+              color: Color.black,
+              //fontFamily: Manrope.Bold,
+              // paddingHorizontal: 10,
+            }}>
+            You Already have an account
+          </Text>
+          <TouchableOpacity
+            style={{
+              height: 50,
+              flexDirection: 'row',
+              marginVertical: 10,
+              backgroundColor: Color.white,
+              borderColor: Color.cloudyGrey,
+              borderWidth: 0.5,
+              justifyContent: 'center',
+              alignItems: 'center',
+              borderRadius: 5,
+            }}
+            onPress={() => {
+              setLoginType('');
+            }}>
+            <Text
+              style={{
+                fontSize: 14,
+                color: Color.black,
+                //fontFamily: Manrope.Bold,
+                paddingHorizontal: 10,
+              }}>
+              Login
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <View
+        style={{
+          marginTop: 20,
+          paddingHorizontal: 10,
+          // justifyContent: 'flex-end',
+          // padding: 10,
+        }}>
+        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+          <Text
+            style={{
+              textAlign: 'justify',
+              fontSize: 12,
+              color: Color.cloudyGrey,
+              //fontFamily: Manrope.Medium,
+              letterSpacing: 0.5,
+              lineHeight: 22,
+            }}>
+            By tapping continue with google, You agree to{' '}
+          </Text>
+          <Text
+            style={{
+              textAlign: 'justify',
+              fontSize: 12,
+              color: Color.black,
+              //fontFamily: Manrope.SemiBold,
+              letterSpacing: 0.5,
+              lineHeight: 22,
+            }}>
+            ShopEasey
+          </Text>
+        </View>
+        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('TermsandConditions')}>
+            <Text
+              style={{
+                textAlign: 'justify',
+                fontSize: 14,
+                color: Color.primary,
+                textDecorationLine: 'underline',
+                //fontFamily: Manrope.SemiBold,
+                letterSpacing: 0.5,
+                lineHeight: 22,
+              }}>
+              Terms and Conditions
+            </Text>
+          </TouchableOpacity>
+          <Text
+            style={{
+              textAlign: 'justify',
+              fontSize: 12,
+              paddingHorizontal: 5,
+              color: Color.cloudyGrey,
+              //fontFamily: Manrope.Medium,
+              letterSpacing: 0.5,
+              lineHeight: 22,
+            }}>
+            and
+          </Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('PrivacyPolicy')}>
+            <Text
+              style={{
+                textAlign: 'justify',
+                fontSize: 14,
+                color: Color.primary,
+                textDecorationLine: 'underline',
+                //fontFamily: Manrope.SemiBold,
+                letterSpacing: 0.5,
+                lineHeight: 22,
+              }}>
+              Privacy Policy
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
 };
 
-// define your styles
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: 'center',
-        backgroundColor: Color.white,
-    },
-    image: {
-        width: 120,
-        height: 120,
-        resizeMode: 'cover', borderRadius: 100
-    },
-    NumberBoxConatiner: {
-        display: 'flex',
-        borderColor: Color.cloudyGrey,
-        borderWidth: 1,
-        height: 50,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 5,
-    },
-    numberCountryCode: {
-        color: Color.black,
-        marginHorizontal: 10,
-        fontSize: 16,
-        fontFamily: Manrope.SemiBold,
-        textAlign: 'center',
-        alignItems: 'center',
-        padding: 5,
-        paddingTop: 5,
-        paddingHorizontal: 5,
-    },
-    invalidLogin: {
-        fontSize: 12,
-        fontFamily: Manrope.Light,
-        color: Color.red,
-        textAlign: 'left',
-        marginTop: 10,
-    },
-    numberTextBox: {
-        flex: 1,
-        display: 'flex',
-        height: 50,
-        borderLeftColor: Color.Venus,
-        borderLeftWidth: 1,
-        color: Color.black,
-        fontSize: 14,
-        padding: 5,
-        paddingTop: 5,
-        paddingHorizontal: 10,
-        fontFamily: Manrope.SemiBold,
-        alignItems: 'flex-start',
-    },
+  container: {
+    flex: 1,
+    backgroundColor: Color.white,
+    padding: 10,
+    justifyContent: 'center',
+  },
+  NumberBoxConatiner: {
+    display: 'flex',
+    borderColor: Color.cloudyGrey,
+    borderWidth: 1,
+    height: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 5,
+  },
+  numberCountryCode: {
+    color: Color.black,
+    marginHorizontal: 10,
+    fontSize: 16,
+    //fontFamily: Manrope.SemiBold,
+    textAlign: 'center',
+    alignItems: 'center',
+    padding: 5,
+    paddingTop: 5,
+    paddingHorizontal: 5,
+  },
+  invalidLogin: {
+    fontSize: 12,
+    //fontFamily: Manrope.Light,
+    color: Color.red,
+    textAlign: 'left',
+    marginTop: 10,
+  },
+  numberTextBox: {
+    flex: 1,
+    display: 'flex',
+    height: 50,
+    borderLeftColor: Color.Venus,
+    borderLeftWidth: 1,
+    color: Color.black,
+    fontSize: 14,
+    padding: 5,
+    paddingTop: 5,
+    paddingHorizontal: 10,
+    //fontFamily: Manrope.SemiBold,
+    alignItems: 'flex-start',
+  },
 });
 
-//make this component available to the app
 export default Login;
